@@ -1,0 +1,193 @@
+﻿@page "/notes"
+@using TanuloNaplo
+@using Microsoft.JSInterop
+@inject NoteService NoteService
+@inject IJSRuntime JS
+@rendermode InteractiveServer
+
+<h3>📝 Tudásnapló és Jegyzetek</h3>
+
+<div class="alert alert-secondary d-flex align-items-center gap-3 mb-4">
+    <label class="fw-bold">👤 Jelenlegi felhasználó:</label>
+    <input class="form-control w-25" @bind="currentUser" placeholder="Írd át a nevet..." />
+    <button class="btn btn-dark btn-sm" @onclick="RefreshList">Váltás / Frissítés</button>
+</div>
+
+<div class="row">
+    <div class="col-md-5">
+
+        <div class="card p-3 shadow-sm mb-4">
+            <h4>Új jegyzet</h4>
+
+            <div class="mb-3">
+                <label>Kurzus neve:</label>
+                <input class="form-control" @bind="actualNote.CourseName" placeholder="Pl. Webfejlesztés" />
+            </div>
+
+            <div class="mb-3">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <label>Jegyzet tartalma:</label>
+                    <button class="btn btn-sm @(isRecording ? "btn-danger" : "btn-outline-primary")"
+                            @onclick="StartVoiceInput">
+                        @(isRecording ? "🛑 Figyelek..." : "🎤 Diktálás")
+                    </button>
+                </div>
+                <textarea class="form-control" rows="5" @bind="actualNote.NoteContent" placeholder="Mit tanultál ma?"></textarea>
+            </div>
+
+            <div class="d-flex gap-2">
+                <button class="btn btn-primary" @onclick="SaveNote">
+                    @(actualNote.Id == 0 ? "💾 Mentés" : "✏️ Módosítás mentése")
+                </button>
+                @if (actualNote.Id != 0)
+                {
+                    <button class="btn btn-secondary" @onclick="CancelEdit">Mégsem</button>
+                }
+            </div>
+        </div>
+
+        <div class="card bg-light border-info mb-4">
+            <div class="card-body">
+                <h5 class="card-title text-info">🤖 AI Havi Riport</h5>
+                <p class="card-text small text-muted">Kérj elemzést a havi teljesítményedről!</p>
+
+                @if (isGenerating)
+                {
+                    <div class="alert alert-warning py-1">
+                        <span class="spinner-grow spinner-grow-sm"></span> Elemzés...
+                    </div>
+                }
+                else if (!string.IsNullOrEmpty(aiSummary))
+                {
+                    <div class="alert alert-success small">
+                        @aiSummary
+                    </div>
+                }
+
+                <button class="btn btn-info text-white w-100" @onclick="GetAiSummary" disabled="@isGenerating">
+                    ✨ Összefoglalás generálása
+                </button>
+            </div>
+        </div>
+
+    </div>
+
+    <div class="col-md-7">
+        <h4>Korábbi jegyzeteim (@currentUser)</h4>
+
+        @if (myNotes == null || !myNotes.Any())
+        {
+            <div class="alert alert-warning">
+                <em>Nincsenek megjeleníthető jegyzetek ehhez a felhasználóhoz.</em>
+            </div>
+        }
+        else
+        {
+            @foreach (var note in myNotes)
+            {
+                <div class="card mb-3 shadow-sm">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between">
+                            <h5 class="card-title text-primary">@note.CourseName</h5>
+                            <small class="text-muted">@note.CreatedAt.ToString("yyyy.MM.dd HH:mm")</small>
+                        </div>
+                        <p class="card-text mt-2">@note.NoteContent</p>
+
+                        <div class="d-flex gap-2 justify-content-end">
+                            <button class="btn btn-warning btn-sm" @onclick="() => EditNote(note)">✏️ Szerk.</button>
+                            <button class="btn btn-danger btn-sm" @onclick="() => DeleteNote(note.Id)">🗑️ Törlés</button>
+                        </div>
+                    </div>
+                </div>
+            }
+        }
+    </div>
+</div>
+
+@code {
+    private string currentUser = "Hallgato1";
+    private UserNote actualNote = new UserNote();
+    private List<UserNote> myNotes = new List<UserNote>();
+
+    private bool isRecording = false;
+    private string aiSummary = "";
+    private bool isGenerating = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await RefreshList();
+    }
+
+    private async Task SaveNote()
+    {
+        if (!string.IsNullOrWhiteSpace(actualNote.NoteContent))
+        {
+            actualNote.UserId = currentUser;
+            if (actualNote.Id == 0) await NoteService.AddNoteAsync(actualNote);
+            else await NoteService.UpdateNoteAsync(actualNote);
+
+            actualNote = new UserNote();
+            await RefreshList();
+        }
+    }
+
+    private void EditNote(UserNote note)
+    {
+        actualNote = new UserNote
+        {
+            Id = note.Id,
+            CourseName = note.CourseName,
+            NoteContent = note.NoteContent,
+            UserId = note.UserId,
+            CreatedAt = note.CreatedAt
+        };
+    }
+
+    private void CancelEdit() => actualNote = new UserNote();
+
+    private async Task DeleteNote(int id)
+    {
+        await NoteService.DeleteNoteAsync(id);
+        await RefreshList();
+    }
+
+    private async Task RefreshList()
+    {
+        // Most már nem lesz piros, mert a NoteService-ben megcsináltuk a paraméteres verziót!
+        myNotes = await NoteService.GetNotesAsync(currentUser);
+        aiSummary = "";
+    }
+
+    private async Task GetAiSummary()
+    {
+        isGenerating = true;
+        aiSummary = "";
+        // Most már nem lesz piros, mert beraktuk a NoteService-be!
+        aiSummary = await NoteService.GenerateAiSummaryAsync(currentUser);
+        isGenerating = false;
+    }
+
+    private async Task StartVoiceInput()
+    {
+        isRecording = true;
+        var dotNetHelper = DotNetObjectReference.Create(this);
+        await JS.InvokeVoidAsync("startDictation", dotNetHelper);
+    }
+
+    [JSInvokable]
+    public void ReceiveDictation(string text)
+    {
+        if (string.IsNullOrWhiteSpace(actualNote.NoteContent)) actualNote.NoteContent = text;
+        else actualNote.NoteContent += " " + text;
+
+        isRecording = false;
+        StateHasChanged();
+    }
+
+    [JSInvokable]
+    public void StopRecordingUI()
+    {
+        isRecording = false;
+        StateHasChanged();
+    }
+}
