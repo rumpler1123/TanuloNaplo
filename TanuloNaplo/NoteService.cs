@@ -1,22 +1,29 @@
 ﻿using Microsoft.EntityFrameworkCore;
-using System.Threading.Tasks;
+using Microsoft.Extensions.Configuration;
+using OpenAI;
+using OpenAI.Chat;
+using System;
 using System.Collections.Generic;
 using System.Linq;
-using System;
+using System.Threading.Tasks;
 
 namespace TanuloNaplo;
 
 public class NoteService
 {
     private readonly NaploContext _context;
+    private readonly string _openAiApiKey;
 
-    public NoteService(NaploContext context)
+    public NoteService(NaploContext context, IConfiguration configuration)
     {
         _context = context;
         _context.Database.EnsureCreated();
+
+        _openAiApiKey = configuration["OpenAI:ApiKey"]
+                        ?? throw new InvalidOperationException("Hiányzik az OpenAI:ApiKey beállítás (UserSecrets).");
     }
 
-    // 1. OLVASÁS - Most már kér UserID-t! (Ez oldja meg a piros GetNotesAsync hibát)
+    // 1. OLVASÁS
     public async Task<List<UserNote>> GetNotesAsync(string userId)
     {
         return await _context.Notes
@@ -25,24 +32,81 @@ public class NoteService
                              .ToListAsync();
     }
 
-    // 2. AI ÖSSZEFOGLALÓ (Ez oldja meg a piros GenerateAiSummaryAsync hibát)
+    // 2. AI ÖSSZEFOGLALÓ
     public async Task<string> GenerateAiSummaryAsync(string userId)
     {
+        // 1. Jegyzetek lekérése
+        var now = DateTime.Now;
         var notes = await _context.Notes
-            .Where(n => n.UserId == userId)
+            .Where(n => n.UserId == userId
+                        && n.CreatedAt.Year == now.Year
+                        && n.CreatedAt.Month == now.Month)
+            .OrderBy(n => n.CreatedAt)
             .ToListAsync();
 
-        if (!notes.Any()) return "Nincs elegendő adat az elemzéshez.";
+        if (!notes.Any())
+            return "Ebben a hónapban nincs jegyzet, nincs mit összefoglalni.";
 
-        // AI Szimuláció (Prompt Design bemutatása)
-        string systemMessage = @"Te egy többnyelven beszélő, segítőkész asszisztens vagy, aki oktatóként működik! 
-        Neved: Edu! Feladatod, hogy tanítsd a felhasználókat.";
+        // 2. Jegyzetek összefűzése promptba
+        string collectedNotes = string.Join(
+            "\n\n---\n\n",
+            notes.Select(n =>
+                $"{n.CreatedAt:yyyy-MM-dd} • [{n.CourseName}]\n{n.NoteContent}"
+            )
+        );
 
-        await Task.Delay(2000); // Gondolkodás imitálása
+        string systemMessage =
+            "Te egy professzionális, magyar nyelvű tanulmányi mentor asszisztens vagy. " +
+            "Feladatod: egyetemi hallgatók havi tanulmányi előrehaladásáról készíteni jól tagolt, " +
+            "könnyen olvasható, motiváló és szakmailag precíz összefoglalókat." +
+            "\n\nFontos elvárások:" +
+            "\n- Használj strukturált szekciókat és alcímeket." +
+            "\n- Adj bulletpontokat a főbb témákhoz." +
+            "\n- Adj visszajelzést és pozitív megerősítést." +
+            "\n- Maradj tömör, de informatív." +
+            "\n- Formázz Markdown-ban (## címek, **kiemelés**, - pontok)." +
+            "\n- Ne használj túl hosszú bekezdéseket.";
 
-        var kurzusok = notes.Select(n => n.CourseName).Distinct();
-        return $"🤖 Edu: Szia {userId}! Ebben a hónapban a következő tárgyakkal foglalkoztál: {string.Join(", ", kurzusok)}. " +
-               $"Összesen {notes.Count} jegyzetet készítettél. Csak így tovább!";
+        string userPrompt =
+            $"Készíts egy esztétikusan tagolt havi tanulmányi riportot a következő jegyzetekből.\n" +
+            $"A riport tartalmazzon:\n" +
+            $"- rövid, motiváló bevezetőt,\n" +
+            $"- főbb tanult témák listáját,\n" +
+            $"- készségfejlődési pontokat,\n" +
+            $"- egy összegző ajánlást a következő hónapra.\n\n" +
+            $"Felhasználó: {userId}\n" +
+            $"Időszak: {now.Year}. {now.Month}. hónap\n\n" +
+            $"### Jegyzetek:\n{collectedNotes}";
+
+        // 3. ChatClient létrehozása
+        var client = new ChatClient(
+            model: "gpt-4.1-mini",
+            apiKey: _openAiApiKey
+        );
+
+        // 4. OpenAI hívás
+        try
+        {
+            ChatCompletion result = await client.CompleteChatAsync(
+                new ChatMessage[]
+                {
+                new SystemChatMessage(systemMessage),
+                new UserChatMessage(userPrompt)
+                }
+            );
+
+            return result.Content[0].Text;
+        }
+        catch (System.ClientModel.ClientResultException)
+        {
+            // ide jön a 429 is
+            return "Nem sikerült az AI-összefoglaló: nincs elegendő OpenAI kvóta vagy hibás a számlázás. " +
+                   "Kérjük, ellenőrizd az OpenAI fiókod beállításait.";
+        }
+        catch (Exception)
+        {
+            return "Váratlan hiba történt az AI-összefoglaló generálása közben.";
+        }
     }
 
     // 3. LÉTREHOZÁS

@@ -1,6 +1,7 @@
 ﻿@page "/notes"
 @using TanuloNaplo
 @using Microsoft.JSInterop
+@using Markdig
 @inject NoteService NoteService
 @inject IJSRuntime JS
 @rendermode InteractiveServer
@@ -59,8 +60,8 @@
                 }
                 else if (!string.IsNullOrEmpty(aiSummary))
                 {
-                    <div class="alert alert-success small">
-                        @aiSummary
+                    <div class="alert alert-success small ai-summary-box">
+                        @((MarkupString)Markdown.ToHtml(aiSummary))
                     </div>
                 }
 
