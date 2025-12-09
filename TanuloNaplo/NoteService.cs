@@ -23,7 +23,6 @@ public class NoteService
                         ?? throw new InvalidOperationException("Hiányzik az OpenAI:ApiKey beállítás (UserSecrets).");
     }
 
-    // 1. OLVASÁS
     public async Task<List<UserNote>> GetNotesAsync(string userId)
     {
         return await _context.Notes
@@ -32,10 +31,10 @@ public class NoteService
                              .ToListAsync();
     }
 
-    // 2. AI ÖSSZEFOGLALÓ
+    // AI ÖSSZEFOGLALÓ
     public async Task<string> GenerateAiSummaryAsync(string userId)
     {
-        // 1. Jegyzetek lekérése
+        // jegyzetek lekérése
         var now = DateTime.Now;
         var notes = await _context.Notes
             .Where(n => n.UserId == userId
@@ -47,7 +46,7 @@ public class NoteService
         if (!notes.Any())
             return "Ebben a hónapban nincs jegyzet, nincs mit összefoglalni.";
 
-        // 2. Jegyzetek összefűzése promptba
+        // jegyzetek összefűzése promptba
         string collectedNotes = string.Join(
             "\n\n---\n\n",
             notes.Select(n =>
@@ -78,13 +77,13 @@ public class NoteService
             $"Időszak: {now.Year}. {now.Month}. hónap\n\n" +
             $"### Jegyzetek:\n{collectedNotes}";
 
-        // 3. ChatClient létrehozása
+        //  ChatClient létrehozása
         var client = new ChatClient(
             model: "gpt-4.1-mini",
             apiKey: _openAiApiKey
         );
 
-        // 4. OpenAI hívás
+        // OpenAI hívás
         try
         {
             ChatCompletion result = await client.CompleteChatAsync(
@@ -109,7 +108,7 @@ public class NoteService
         }
     }
 
-    // 3. LÉTREHOZÁS
+    // LÉTREHOZÁS
     public async Task AddNoteAsync(UserNote note)
     {
         note.CreatedAt = DateTime.Now;
@@ -117,7 +116,7 @@ public class NoteService
         await _context.SaveChangesAsync();
     }
 
-    // 4. FRISSÍTÉS
+    // FRISSÍTÉS
     public async Task UpdateNoteAsync(UserNote note)
     {
         var existingNote = await _context.Notes.FindAsync(note.Id);
@@ -125,12 +124,12 @@ public class NoteService
         {
             existingNote.CourseName = note.CourseName;
             existingNote.NoteContent = note.NoteContent;
-            existingNote.UserId = note.UserId; // Biztosítjuk, hogy a user is frissüljön
+            existingNote.UserId = note.UserId;
             await _context.SaveChangesAsync();
         }
     }
 
-    // 5. TÖRLÉS
+    // TÖRLÉS
     public async Task DeleteNoteAsync(int id)
     {
         var note = await _context.Notes.FindAsync(id);

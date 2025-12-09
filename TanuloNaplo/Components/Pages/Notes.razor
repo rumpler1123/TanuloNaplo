@@ -154,7 +154,6 @@
 
     private async Task RefreshList()
     {
-        // Most már nem lesz piros, mert a NoteService-ben megcsináltuk a paraméteres verziót!
         myNotes = await NoteService.GetNotesAsync(currentUser);
         aiSummary = "";
     }
@@ -163,7 +162,6 @@
     {
         isGenerating = true;
         aiSummary = "";
-        // Most már nem lesz piros, mert beraktuk a NoteService-be!
         aiSummary = await NoteService.GenerateAiSummaryAsync(currentUser);
         isGenerating = false;
     }
