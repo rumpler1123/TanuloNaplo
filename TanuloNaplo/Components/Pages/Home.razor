@@ -1,7 +1,53 @@
 ﻿@page "/"
+@inject NavigationManager NavManager
 
-<PageTitle>Home</PageTitle>
+<PageTitle>Kezdőlap</PageTitle>
 
-<h1>Hello, world!</h1>
+<div class="container py-4">
 
-Welcome to your new app.
+    <!-- Fejléc -->
+    <div class="p-4 mb-4 bg-primary text-white rounded-3 shadow-sm">
+        <h1 class="mb-1">TanuloNaplo</h1>
+        <p class="mb-0">Egyszerű jegyzetelő alkalmazás iskolai projekthez.</p>
+    </div>
+
+    <!-- Motivációs üzenet -->
+    <div class="alert alert-info text-center mb-4">
+        A tanulás apró lépések sorozata. A mai lépés is számít.
+    </div>
+
+    <!-- Fő kártyák -->
+    <div class="row g-4">
+
+        <!-- Jegyzetek kártya -->
+        <div class="col-md-6">
+            <div class="card shadow-sm h-100">
+                <div class="card-body d-flex flex-column">
+                    <h5 class="card-title">Jegyzetek</h5>
+                    <p class="card-text flex-grow-1">
+                        Itt hozhatod létre és kezelheted az órákkal kapcsolatos jegyzeteidet.
+                    </p>
+                    <button class="btn btn-primary mt-2 align-self-start"
+                            @onclick='() => NavManager.NavigateTo("notes")'>
+                        Jegyzetek megnyitása
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Jó tanulást kártya -->
+        <div class="col-md-6">
+            <div class="card shadow-sm h-100">
+                <div class="card-body d-flex flex-column">
+                    <h5 class="card-title">Jó tanulást!</h5>
+                    <p class="card-text mb-2">
+                        „Nem kell mindent egyszerre megtanulni. Elég, ha ma egy kicsit jobb vagy, mint tegnap voltál.”
+                    </p>
+                    <p class="card-text small text-muted mb-0">
+                        Tarts szünetet, figyelj magadra, és haladj lépésenként – így lesz a tanulás átlátható és kezelhető.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
