@@ -6,15 +6,14 @@ namespace TanuloNaplo;
 public class NoteService
 {
     private readonly NaploContext _context;
-    private readonly string _openAiApiKey;
+    private readonly string? _openAiApiKey;
 
     public NoteService(NaploContext context, IConfiguration configuration)
     {
         _context = context;
         _context.Database.EnsureCreated();
 
-        _openAiApiKey = configuration["OpenAI:ApiKey"]
-                        ?? throw new InvalidOperationException("Hiányzik az OpenAI:ApiKey beállítás (UserSecrets).");
+        _openAiApiKey = configuration["OpenAI:ApiKey"];
     }
 
     public async Task<List<UserNote>> GetNotesAsync(string userId)
@@ -28,6 +27,11 @@ public class NoteService
     // AI ÖSSZEFOGLALÓ
     public async Task<string> GenerateAiSummaryAsync(string userId)
     {
+
+        if (string.IsNullOrWhiteSpace(_openAiApiKey))
+        {
+            return "Az AI összefoglaló nincs beállítva. Add meg az OpenAI API kulcsot User Secrets-ben (OpenAI:ApiKey).";
+        }
         // jegyzetek lekérése
         var now = DateTime.Now;
         var notes = await _context.Notes
